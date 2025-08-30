@@ -22,9 +22,10 @@
 <p class="success">Name updated successfully.</p>
 {% endif %}
 
-<h3>Change Name Only</h3>
+
+<h3>Change Name</h3>
 <form method="post" action="/profile/update">
-    <input type="hidden" name="csrf_token" value="{{user.csrf_token}}" />
+    <input type="hidden" name="csrf_token" value="{{ user.csrf_token }}" />
     <label>First Name
         <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100" required />
     </label>
