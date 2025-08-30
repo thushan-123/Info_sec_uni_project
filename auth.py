@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, HTTPException, status
 from fastapi.responses import RedirectResponse
 from authlib.integrations.starlette_client import OAuth
 from starlette.datastructures import URL
@@ -6,7 +6,6 @@ from .config import settings
 from .db import get_session
 from .models import User
 from sqlmodel import select
-
 
 router = APIRouter()
 
@@ -60,5 +59,21 @@ async def callback(request: Request, session = Depends(get_session)):
     return RedirectResponse(url="/profile", status_code=302)
 
 
+@router.get("/logout")
+async def logout(request: Request):
+    request.session.clear()
+
+    return RedirectResponse(
+        
+    url=URL(f"https://{settings.AUTH0_DOMAIN}/v2/logout").include_query_params(
+        client_id=settings.AUTH0_CLIENT_ID,
+        returnTo=str(URL(request.url_for("index")))
+        )
+    )
 
 
+def require_user(request: Request):
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login required")
+    return user
