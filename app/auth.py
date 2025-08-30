@@ -6,6 +6,8 @@ from .config import settings
 from .db import get_session
 from .models import User
 from sqlmodel import select
+from urllib.parse import urlencode
+
 
 router = APIRouter()
 
@@ -21,8 +23,9 @@ oauth.register(
 
 @router.get("/login")
 async def login(request: Request):
-    redirect_uri = settings.AUTH0_CALLBACK_URL
+    redirect_uri = str(settings.AUTH0_CALLBACK_URL)
     return await oauth.auth0.authorize_redirect(request, redirect_uri)
+
 
 
 
@@ -59,17 +62,20 @@ async def callback(request: Request, session = Depends(get_session)):
     return RedirectResponse(url="/profile", status_code=302)
 
 
+
+
 @router.get("/logout")
 async def logout(request: Request):
     request.session.clear()
+    params = {
+        "client_id": settings.AUTH0_CLIENT_ID,
+        "returnTo": str(request.url_for("index"))
+    }
+    url = f"https://{settings.AUTH0_DOMAIN}/v2/logout?{urlencode(params)}"
+    return RedirectResponse(url=url)
 
-    return RedirectResponse(
-        
-    url=URL(f"https://{settings.AUTH0_DOMAIN}/v2/logout").include_query_params(
-        client_id=settings.AUTH0_CLIENT_ID,
-        returnTo=str(URL(request.url_for("index")))
-        )
-    )
+
+
 
 
 def require_user(request: Request):

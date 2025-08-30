@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Request, Depends, Form
+from fastapi import FastAPI, HTTPException, Request, Depends, Form
 from fastapi.concurrency import asynccontextmanager
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,12 +12,16 @@ from .security import SecurityHeadersMiddleware, get_csrf_token_for_session
 from sqlmodel import select
 from datetime import datetime
 import os, pathlib
-import uvicorn
+from sqlmodel import SQLModel
+from fastapi_csrf_protect import CsrfProtect
+#import uvicorn
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):     #cret the db tables
-    await init_db()
+    init_db()
     yield
+    
+    
     
 
 
@@ -30,8 +34,8 @@ app.add_middleware(SecurityHeadersMiddleware)
 
 #html sttic file jinja template
 
-app.mount("/static", StaticFiles(directory="./static"), name="static")
-templates = Jinja2Templates(directory="./templates")
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+templates = Jinja2Templates(directory="app/templates")
 
 app.include_router(auth_router)
 
@@ -41,20 +45,12 @@ async def index(request: Request):
     return templates.TemplateResponse("index.html", {"request": request, "user": user})
 
 
-@app.get("/profile", response_class=HTMLResponse)
-async def profile(request: Request, session=Depends(get_session), user=Depends(require_user)):
-    
-    db_user = session.exec(select(User).where(User.auth0_sub == user["sub"])).first()
-    csrf_token = get_csrf_token_for_session(request)
-    return templates.TemplateResponse(
-        "profile.html",
-        {
-        "request": request,
-        "auth": user,
-        "db_user": db_user,
-        "csrf_token": csrf_token,
-        },
-    )
+@app.get("/profile")
+async def profile(request: Request):
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not logged in")
+    return user  # or render a template
 
 
 @app.post("/profile/update")
@@ -214,9 +210,12 @@ if __name__ == "__main__":
     (base / "templates" / "index.html").write_text(index_html, encoding="utf-8")
     (base / "templates" / "profile.html").write_text(profile_html, encoding="utf-8")
     (base / "static" / "style.css").write_text(style_css, encoding="utf-8")
+
+    print("run server in 127.0.0.1:8000")
     
-    print("run server in 127.0.0.1:8000 ")
-    uvicorn.run(port=8000,host="127.0.0.1", reload=True)
+    import uvicorn
+    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+
 
 
 
