@@ -11,6 +11,7 @@ from .auth import router as auth_router, require_user
 from .security import SecurityHeadersMiddleware, get_csrf_token_for_session
 from sqlmodel import select
 from datetime import datetime
+import os, pathlib
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):     #cret the db tables
@@ -98,6 +99,17 @@ async def update_profile(
 
 
     return RedirectResponse("/profile?s=1", status_code=303)
+
+if __name__ == "__main__":
+
+    base = pathlib.Path(__file__).resolve().parent
+    (base / "templates").mkdir(parents=True, exist_ok=True)
+    (base / "static").mkdir(parents=True, exist_ok=True)
+    (base / "templates" / "base.html").write_text(base_html, encoding="utf-8")
+    (base / "templates" / "index.html").write_text(index_html, encoding="utf-8")
+    (base / "templates" / "profile.html").write_text(profile_html, encoding="utf-8")
+    (base / "static" / "style.css").write_text(style_css, encoding="utf-8")
+    print("Wrote templates and static assets. Run: uvicorn app.main:app --reload")
 
 
 
