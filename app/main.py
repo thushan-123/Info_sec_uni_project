@@ -8,31 +8,27 @@ from .config import settings
 from .db import init_db, get_session
 from .models import User
 from .auth import router as auth_router, require_user
-from .security import SecurityHeadersMiddleware, get_csrf_token_for_session
+from .security import validate_csrf, csrf_token_dependency
 from sqlmodel import select
 from datetime import datetime
 import os, pathlib
 from sqlmodel import SQLModel
 from fastapi_csrf_protect import CsrfProtect
-#import uvicorn
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):     #cret the db tables
-    init_db()
+async def lifespan(app: FastAPI):
+    
+    init_db() 
     yield
     
-    
-    
-
 
 app = FastAPI(title="FastAPI + Auth0 (SQLite)", version="1.0.0", lifespan=lifespan)
 
 # addin middlewere
 app.add_middleware(SessionMiddleware, secret_key=settings.SESSION_SECRET, same_site="lax", https_only=False)
-app.add_middleware(SecurityHeadersMiddleware)
 
 
-#html sttic file jinja template
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
@@ -40,77 +36,93 @@ templates = Jinja2Templates(directory="app/templates")
 app.include_router(auth_router)
 
 @app.get("/", response_class=HTMLResponse)
-async def index(request: Request):
+async def index(request: Request, session= Depends(get_session)):
     user = request.session.get("user")
-    return templates.TemplateResponse("index.html", {"request": request, "user": user})
+
+    db_user = None
+    if user:
+        db_user = session.exec(select(User).where(User.auth0_sub == user.get("sub"))).first()
+
+    safe_user = {
+        "name": f"{db_user.first_name} {db_user.last_name}" if db_user else user.get("name") if user else None,
+        "email": user.get("email") if user else None,
+        "picture": user.get("picture") if user else None
+    } if user else None
+
+    return templates.TemplateResponse("index.html", {"request": request, "user": safe_user})
 
 
-@app.get("/profile")
-async def profile(request: Request):
+@app.get("/profile", response_class=HTMLResponse)
+async def profile(request: Request, session=Depends(get_session), csrf_token: str = Depends(csrf_token_dependency)):
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401, detail="Not logged in")
-    return user  # or render a template
+
+    db_user = session.exec(select(User).where(User.auth0_sub == user.get("sub"))).first()
+
+    safe_user = {
+        "name": f"{db_user.first_name} {db_user.last_name}" if db_user else user.get("name"),
+        "email": user.get("email"),
+        "picture": user.get("picture"),
+        "csrf_token": csrf_token
+    }
+
+    return templates.TemplateResponse(
+        "profile.html",
+        {"request": request, "user": safe_user}
+    )
 
 
 @app.post("/profile/update")
 async def update_profile(
-        request: Request,
-        first_name: str = Form(""),
-        last_name: str = Form(""),
-        age: int | None = Form(None),
-        csrf_token: str = Form(...),
-        session=Depends(get_session),
-        user=Depends(require_user),
-    ):
-    #chek csrf tkn
-    expected = request.session.get("csrf_token")
-    if not expected or expected != csrf_token:
-        return RedirectResponse("/profile?e=csrf", status_code=303)
+    request: Request,
+    first_name: str = Form(...),
+    last_name: str = Form(...),
+    session = Depends(get_session)
+):
+    await validate_csrf(request)
 
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not logged in")
 
-    def sanitize(s: str) -> str:
-        return s.strip()[:100]
+    auth0_sub = user.get("sub")
+    db_user = session.exec(select(User).where(User.auth0_sub == auth0_sub)).first()
 
-
-    first_name = sanitize(first_name)
-    last_name = sanitize(last_name)
-    age = age if age is None else max(0, min(150, age))
-
-
-
-    db_user = session.exec(select(User).where(User.auth0_sub == user["sub"])).first()
     if not db_user:
-        db_user = User(auth0_sub=user["sub"], email=user.get("email"))
-    session.add(db_user)
-
+        db_user = User(auth0_sub=auth0_sub, email=user.get("email"))
 
     db_user.first_name = first_name
     db_user.last_name = last_name
-    db_user.age = age
     db_user.updated_at = datetime.utcnow()
-
 
     session.add(db_user)
     session.commit()
 
+    request.session["user"]["first_name"] = first_name
+    request.session["user"]["last_name"] = last_name
 
-    return RedirectResponse("/profile?s=1", status_code=303)
+    return RedirectResponse(url="/profile", status_code=303)
+
+
 
 base_html = r"""
+
+
+
 <!doctype html>
 <html lang="en">
 
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>{% block title %}FastAPI + Auth0{% endblock %}</title>
+    <title>{% block title %}SE/2021/011 H.T.Madhusankha + Auth0{% endblock %}</title>
     <link rel="stylesheet" href="/static/style.css" />
 </head>
 
 <body>
     <header class="container">
-        <h1>FastAPI + Auth0 + SQLite</h1>
+        <h1>SE/2021/011 H.T.Madhusankha Auth0 + SQLite</h1>
         <nav>
             <a href="/">Home</a>
             {% if user %}
@@ -129,8 +141,9 @@ base_html = r"""
 </html>
 """
 index_html = r"""
+
 {% extends 'base.html' %}
-{% block title %}Home — FastAPI + Auth0{% endblock %}
+{% block title %}SE/2021/011 H.T.Madhusankha + Auth0{% endblock %}
 {% block content %}
 {% if user %}
 <p>Welcome, {{ user.name or user.email }}!</p>
@@ -143,64 +156,80 @@ index_html = r"""
 
 profile_html = r"""
 
-    {% extends 'base.html' %}
+{% extends 'base.html' %}
 {% block title %}Your Profile{% endblock %}
 {% block content %}
 <h2>Authenticated User</h2>
 <ul>
-    <li><strong>Auth0 sub:</strong> {{ auth.sub }}</li>
-    <li><strong>Email:</strong> {{ auth.email }}</li>
+    <li><strong>Auth0 ID:</strong> {{ user.sub }}</li>
+    <li><strong>Email:</strong> {{ user.email }}</li>
+    <li><strong>Name:</strong> {{ user.name or 'Not set' }}</li>
+    {% if user.picture %}
+    <li><img src="{{ user.picture }}" alt="Avatar" style="max-height:64px;border-radius:50%" /></li>
+    {% endif %}
 </ul>
-
 
 <h2>Local Profile</h2>
 {% if request.query_params.get('e') == 'csrf' %}
 <p class="error">CSRF validation failed. Please try again.</p>
-{% elif request.query_params.get('s') %}
+{% elif request.query_params.get('s') == '1' %}
 <p class="success">Profile updated.</p>
+{% elif request.query_params.get('s') == 'name_updated' %}
+<p class="success">Name updated successfully.</p>
 {% endif %}
 
-
+<h3>Update Full Profile</h3>
 <form method="post" action="/profile/update">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>First name
-        <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100"
-            required />
+    <label>First Name
+        <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100" required />
     </label>
-    <label>Last name
-        <input type="text" name="last_name" value="{{ db_user.last_name if db_user else '' }}" maxlength="100"
-            required />
+    <label>Last Name
+        <input type="text" name="last_name" value="{{ db_user.last_name if db_user else '' }}" maxlength="100" required />
     </label>
     <label>Age
-        <input type="number" name="age" value="{{ db_user.age if db_user and db_user.age is not none else '' }}" min="0"
-            max="150" />
+        <input type="number" name="age" value="{{ db_user.age if db_user and db_user.age is not none else '' }}" min="0" max="150" />
     </label>
-    <button type="submit">Save</button>
+    <button type="submit">Save Profile</button>
 </form>
 
+<h3>Change Name Only</h3>
+<form method="post" action="/profile/change-name">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+    <label>First Name
+        <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100" required />
+    </label>
+    <label>Last Name
+        <input type="text" name="last_name" value="{{ db_user.last_name if db_user else '' }}" maxlength="100" required />
+    </label>
+    <button type="submit">Change Name</button>
+</form>
 
+{% if db_user %}
 <details>
-    <summary>Raw DB row (for debugging)</summary>
+    <summary>Raw DB Row (for debugging)</summary>
     <pre>{{ db_user | tojson(indent=2) }}</pre>
 </details>
+{% endif %}
 {% endblock %}
 """
 
 style_css = r"""
-:root { font-family: system-ui, Arial, sans-serif; }
-.container { max-width: 860px; margin: 1rem auto; padding: 0 1rem; }
-header { display: flex; align-items: center; justify-content: space-between; }
-nav a { margin-right: 1rem; }
-form { display: grid; gap: 0.75rem; max-width: 420px; }
-label { display: grid; gap: 0.25rem; }
-input, button { padding: 0.5rem; font-size: 1rem; }
-button { cursor: pointer; }
-.error { color: #b00020; }
-.success { color: #0a7d00; }
-img { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    :root { font-family: system-ui, Arial, sans-serif; }
+    .container { max-width: 860px; margin: 1rem auto; padding: 0 1rem; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    nav a { margin-right: 1rem; }
+    form { display: grid; gap: 0.75rem; max-width: 420px; }
+    label { display: grid; gap: 0.25rem; }
+    input, button { padding: 0.5rem; font-size: 1rem; }
+    button { cursor: pointer; }
+    .error { color: #b00020; }
+    .success { color: #0a7d00; }
+    img { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
 """
 
 
+PORT = settings.PORT
 if __name__ == "__main__":
 
     base = pathlib.Path(__file__).resolve().parent
@@ -211,10 +240,10 @@ if __name__ == "__main__":
     (base / "templates" / "profile.html").write_text(profile_html, encoding="utf-8")
     (base / "static" / "style.css").write_text(style_css, encoding="utf-8")
 
-    print("run server in 127.0.0.1:8000")
+    print(f"run server in 127.0.0.1:{PORT}")
     
     import uvicorn
-    uvicorn.run("app.main:app", host="127.0.0.1", port=8000, reload=True)
+    uvicorn.run("app.main:app", host="127.0.0.1", port=PORT, reload=True)
 
 
 

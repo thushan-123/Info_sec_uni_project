@@ -1,12 +1,12 @@
 
-:root { font-family: system-ui, Arial, sans-serif; }
-.container { max-width: 860px; margin: 1rem auto; padding: 0 1rem; }
-header { display: flex; align-items: center; justify-content: space-between; }
-nav a { margin-right: 1rem; }
-form { display: grid; gap: 0.75rem; max-width: 420px; }
-label { display: grid; gap: 0.25rem; }
-input, button { padding: 0.5rem; font-size: 1rem; }
-button { cursor: pointer; }
-.error { color: #b00020; }
-.success { color: #0a7d00; }
-img { box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+    :root { font-family: system-ui, Arial, sans-serif; }
+    .container { max-width: 860px; margin: 1rem auto; padding: 0 1rem; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    nav a { margin-right: 1rem; }
+    form { display: grid; gap: 0.75rem; max-width: 420px; }
+    label { display: grid; gap: 0.25rem; }
+    input, button { padding: 0.5rem; font-size: 1rem; }
+    button { cursor: pointer; }
+    .error { color: #b00020; }
+    .success { color: #0a7d00; }
+    img { box-shadow: 0 2px 8px rgba(0,0,0,.15); }

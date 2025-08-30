@@ -35,8 +35,6 @@ async def callback(request: Request, session = Depends(get_session)):
     token = await oauth.auth0.authorize_access_token(request)
     userinfo = token.get("userinfo") or await oauth.auth0.parse_id_token(request, token)
 
-
-    # Save minimal user record into DB (safe via ORM) — prevents SQL injection
     auth0_sub = userinfo.get("sub")
     email = userinfo.get("email")
 
