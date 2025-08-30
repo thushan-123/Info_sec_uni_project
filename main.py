@@ -10,6 +10,7 @@ from .models import User
 from .auth import router as auth_router, require_user
 from .security import SecurityHeadersMiddleware, get_csrf_token_for_session
 from sqlmodel import select
+from datetime import datetime
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):     #cret the db tables
@@ -53,6 +54,50 @@ async def profile(request: Request, session=Depends(get_session), user=Depends(r
         },
     )
 
+
+@app.post("/profile/update")
+async def update_profile(
+        request: Request,
+        first_name: str = Form(""),
+        last_name: str = Form(""),
+        age: int | None = Form(None),
+        csrf_token: str = Form(...),
+        session=Depends(get_session),
+        user=Depends(require_user),
+    ):
+    #chek csrf tkn
+    expected = request.session.get("csrf_token")
+    if not expected or expected != csrf_token:
+        return RedirectResponse("/profile?e=csrf", status_code=303)
+
+
+    def sanitize(s: str) -> str:
+        return s.strip()[:100]
+
+
+    first_name = sanitize(first_name)
+    last_name = sanitize(last_name)
+    age = age if age is None else max(0, min(150, age))
+
+
+
+    db_user = session.exec(select(User).where(User.auth0_sub == user["sub"])).first()
+    if not db_user:
+        db_user = User(auth0_sub=user["sub"], email=user.get("email"))
+    session.add(db_user)
+
+
+    db_user.first_name = first_name
+    db_user.last_name = last_name
+    db_user.age = age
+    db_user.updated_at = datetime.utcnow()
+
+
+    session.add(db_user)
+    session.commit()
+
+
+    return RedirectResponse("/profile?s=1", status_code=303)
 
 
 
