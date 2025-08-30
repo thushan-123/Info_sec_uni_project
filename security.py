@@ -4,7 +4,7 @@ from itsdangerous import URLSafeSerializer
 from uuid import uuid4
 
 
-CSRF_SESSION_KEY = "csrf_token"
+CSRF_SESSION_KEY = "ewfowgefoywqefoygfIGIEGUWwewef93892"
 
 
 
