@@ -140,79 +140,13 @@ base_html = r"""
 
 </html>
 """
-index_html = r"""
 
-{% extends 'base.html' %}
-{% block title %}SE/2021/011 H.T.Madhusankha + Auth0{% endblock %}
-{% block content %}
-{% if user %}
-<p>Welcome, {{ user.name or user.email }}!</p>
-<img src="{{ user.picture }}" alt="avatar" style="max-height:64px;border-radius:50%" />
-{% else %}
-<p>Please <a href="/login">log in</a> to manage your profile.</p>
-{% endif %}
-{% endblock %}
-"""
+with open("app/templates/index.html", "r") as f:
+    index_html =f.read()
 
-profile_html = r"""
+with open("app/templates/profile.html", "r") as f:
+    profile_html =f.read()
 
-{% extends 'base.html' %}
-{% block title %}Your Profile{% endblock %}
-{% block content %}
-<h2>Authenticated User</h2>
-<ul>
-    <li><strong>Auth0 ID:</strong> {{ user.sub }}</li>
-    <li><strong>Email:</strong> {{ user.email }}</li>
-    <li><strong>Name:</strong> {{ user.name or 'Not set' }}</li>
-    {% if user.picture %}
-    <li><img src="{{ user.picture }}" alt="Avatar" style="max-height:64px;border-radius:50%" /></li>
-    {% endif %}
-</ul>
-
-<h2>Local Profile</h2>
-{% if request.query_params.get('e') == 'csrf' %}
-<p class="error">CSRF validation failed. Please try again.</p>
-{% elif request.query_params.get('s') == '1' %}
-<p class="success">Profile updated.</p>
-{% elif request.query_params.get('s') == 'name_updated' %}
-<p class="success">Name updated successfully.</p>
-{% endif %}
-
-<h3>Update Full Profile</h3>
-<form method="post" action="/profile/update">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>First Name
-        <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100" required />
-    </label>
-    <label>Last Name
-        <input type="text" name="last_name" value="{{ db_user.last_name if db_user else '' }}" maxlength="100" required />
-    </label>
-    <label>Age
-        <input type="number" name="age" value="{{ db_user.age if db_user and db_user.age is not none else '' }}" min="0" max="150" />
-    </label>
-    <button type="submit">Save Profile</button>
-</form>
-
-<h3>Change Name Only</h3>
-<form method="post" action="/profile/change-name">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-    <label>First Name
-        <input type="text" name="first_name" value="{{ db_user.first_name if db_user else '' }}" maxlength="100" required />
-    </label>
-    <label>Last Name
-        <input type="text" name="last_name" value="{{ db_user.last_name if db_user else '' }}" maxlength="100" required />
-    </label>
-    <button type="submit">Change Name</button>
-</form>
-
-{% if db_user %}
-<details>
-    <summary>Raw DB Row (for debugging)</summary>
-    <pre>{{ db_user | tojson(indent=2) }}</pre>
-</details>
-{% endif %}
-{% endblock %}
-"""
 
 style_css = r"""
     :root { font-family: system-ui, Arial, sans-serif; }
