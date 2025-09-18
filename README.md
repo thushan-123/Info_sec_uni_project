@@ -16,9 +16,9 @@ Activate the virtual environment:
     .venv\Scripts\Activate.ps1
 
 ## 2. Install dependencies
-Install all required packages from `requirements.txt`:
+Install all required packages from `requirments.txt`:
 
-    pip install -r requirements.txt
+    pip install -r requirments.txt
 
 ## 3. Create a .env file
 In the project root, create a `.env` file and add the following:
